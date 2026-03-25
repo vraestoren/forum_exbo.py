@@ -11,21 +11,35 @@ class ForumExbo:
         }
         self.token = None
         self.user_id = None
+        self.csrf_token = None
+        self.flarum_session = None
         self.get_cookies()
-        
+
+    def _post(self, endpoint: str, data: dict) -> dict:
+        return self.session.post(
+            f"{self.api}{endpoint}", json=data).json()
+
+    def _patch(self, endpoint: str, data: dict) -> dict:
+        return self.session.patch(
+            f"{self.api}{endpoint}", json=data).json()
+
+    def _get(self, endpoint: str) -> dict:
+        return self.session.get(
+            f"{self.api}{endpoint}").json()
+
     def get_cookies(self) -> None:
-        response =  self.session.get(self.api)
+        response = self.session.get(self.api)
         self.csrf_token = response.headers["X-CSRF-Token"]
         self.flarum_session = response.cookies["flarum_session"]
-        self.self.session.headers["x-csrf-token"] = self.csrf_token
+        self.session.headers["x-csrf-token"] = self.csrf_token
         self.session.headers["cookie"] = f"flarum_session={self.flarum_session}"
-    
+
     def login_with_flarum(
             self,
             flarum_session: str,
-            flarum_remember: str) -> str:
+            flarum_remember: str) -> tuple:
         self.flarum_session = flarum_session
-        self.flarum_remember = self.flarum_remember
+        self.flarum_remember = flarum_remember
         self.session.headers["cookie"] = f"flarum_remember={self.flarum_remember}; flarum_session={self.flarum_session}"
         return self.flarum_session, self.flarum_remember
 
@@ -36,12 +50,10 @@ class ForumExbo:
                 "id": comment_id,
                 "attributes": {
                     "isLiked": True
-                    }
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/posts/{comment_id}", json=data).json()
+        return self._patch(f"/api/posts/{comment_id}", data)
 
     def unlike_comment(self, comment_id: int) -> dict:
         data = {
@@ -53,10 +65,10 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/posts/{comment_id}", json=data).json()
+        return self._patch(f"/api/posts/{comment_id}", data)
 
-    def react_comment(self, comment_id: int, reaction_id: int = 5) -> dict:
+    def react_comment(
+            self, comment_id: int, reaction_id: int = 5) -> dict:
         data = {
             "data": {
                 "type": "posts",
@@ -66,9 +78,7 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/posts/{comment_id}",
-            json=data).json()
+        return self._patch(f"/api/posts/{comment_id}", data)
 
     def comment(self, discussion_id: int, content: str) -> dict:
         data = {
@@ -85,8 +95,7 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/posts", json=data).json()
+        return self._post("/api/posts", data)
 
     def edit_comment(
             self,
@@ -96,16 +105,15 @@ class ForumExbo:
         data = {
             "data": {
                 "type": "posts",
-                "id": comment_id
+                "id": comment_id,
+                "attributes": {}
             }
         }
         if content:
-            data["attributes"] = {"content": content}
+            data["data"]["attributes"]["content"] = content
         if is_hidden:
-            data["attributes"] = {"isHidden": is_hidden}
-        return self.session.post(
-            f"{self.api}/api/posts/{comment_id}",
-            json=data).json()
+            data["data"]["attributes"]["isHidden"] = is_hidden
+        return self._patch(f"/api/posts/{comment_id}", data)
 
     def report_comment(
             self,
@@ -125,19 +133,18 @@ class ForumExbo:
                             "id": self.user_id
                         }
                     },
-                "post": {
-                    "data": {
-                        "type": "posts",
-                        "id": comment_id
+                    "post": {
+                        "data": {
+                            "type": "posts",
+                            "id": comment_id
                         }
                     }
                 }
             }
         }
         if detail:
-            data["attributes"] = {"reasonDetail": detail}
-        return self.session.post(
-            f"{self.api}/api/flags", json=data).json()
+            data["data"]["attributes"]["reasonDetail"] = detail
+        return self._post("/api/flags", data)
 
     def follow_discussion(self, discussion_id: int) -> dict:
         data = {
@@ -149,9 +156,7 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/discussions/{discussion_id}",
-            json=data).json()
+        return self._patch(f"/api/discussions/{discussion_id}", data)
 
     def unfollow_discussion(self, discussion_id: int) -> dict:
         data = {
@@ -163,18 +168,16 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/discussions/{discussion_id}",
-            json=data).json()
+        return self._patch(f"/api/discussions/{discussion_id}", data)
 
     def get_user_discussions(
             self,
             username: str,
-            include: str = "user,lastPostedUser,mostRelevantPost,mostRelevantPost.user,tags,tags.parent,firstPost,lastPost", 
-            sort: str = "-createdAt", 
+            include: str = "user,lastPostedUser,mostRelevantPost,mostRelevantPost.user,tags,tags.parent,firstPost,lastPost",
+            sort: str = "-createdAt",
             offset: int = 0) -> dict:
-        return self.session.get(
-            f"{self.api}/api/discussions?include={include}&filter[q]=author:{username}&sort={sort}&page[offset]={offset}").json()
+        return self._get(
+            f"/api/discussions?include={include}&filter[q]=author:{username}&sort={sort}&page[offset]={offset}")
 
     def get_user_mentioned(
             self,
@@ -182,33 +185,31 @@ class ForumExbo:
             offset: int = 0,
             limit: int = 20,
             sort: str = "-createdAt") -> dict:
-        return self.session.get(
-            f"{self.api}/api/posts?filter[type]=comment&filter[mentioned]={user_id}&page[offset]={offset}&page[limit]={limit}&sort={sort}").json()
-    
+        return self._get(
+            f"/api/posts?filter[type]=comment&filter[mentioned]={user_id}&page[offset]={offset}&page[limit]={limit}&sort={sort}")
+
     def get_user_comments(
             self,
             username: str,
             offset: int = 0,
             limit: int = 20,
             sort: str = "-createdAt") -> dict:
-        return self.session.get(
-            f"{self.api}/api/posts?filter[author]={username}&filter[type]=comment&page[offset]={offset}&page[limit]={limit}&sort={sort}").json()
+        return self._get(
+            f"/api/posts?filter[author]={username}&filter[type]=comment&page[offset]={offset}&page[limit]={limit}&sort={sort}")
 
     def get_user_info(self, user_id: int) -> dict:
-        return self.session.get(
-            f"{self.api}/api/users/{user_id}").json()
+        return self._get(f"/api/users/{user_id}")
 
     def get_notifications(self, offset: int = 0) -> dict:
-        return self.session.get(
-            f"{self.api}/api/notifications?page[offset]={offset}").json()
+        return self._get(f"/api/notifications?page[offset]={offset}")
 
     def get_discussions(
             self,
-            include: str = "user,lastPostedUser,tags,tags.parent,firstPost,firstPost,lastPost",
+            include: str = "user,lastPostedUser,tags,tags.parent,firstPost,lastPost",
             sort: str = "-createdAt",
             offset: int = 20) -> dict:
-        return self.session.get(
-            f"{self.api}/api/discussions?include={include}&sort={sort}&page[offset]={offset}").json()
+        return self._get(
+            f"/api/discussions?include={include}&sort={sort}&page[offset]={offset}")
 
     def mark_discussions_read(self) -> dict:
         data = {
@@ -220,9 +221,7 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/users/{self.user_id}", 
-            json=data).json()
+        return self._patch(f"/api/users/{self.user_id}", data)
 
     def ignore_user(self, user_id: int) -> dict:
         data = {
@@ -234,10 +233,7 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/users/{user_id}",
-            json=data).json()
-
+        return self._patch(f"/api/users/{user_id}", data)
 
     def unignore_user(self, user_id: int) -> dict:
         data = {
@@ -249,13 +245,10 @@ class ForumExbo:
                 }
             }
         }
-        return self.session.post(
-            f"{self.api}/api/users/{user_id}",
-            json=data).json()
+        return self._patch(f"/api/users/{user_id}", data)
 
     def reset_password(self, email: str) -> dict:
         data = {
             "email": email
         }
-        return self.session.post(
-            f"{self.api}/forgot", json=data).json()
+        return self._post("/forgot", data)a
