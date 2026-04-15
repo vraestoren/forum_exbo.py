@@ -3,7 +3,7 @@
   forum_exbo.py
 </h1>
 
-> Web-API for [forum.exbo.ru](https://forum.exbo.ru) website which is the official [stalcraft](https://store.steampowered.com/app/1818450/STALCRAFT) forum
+> Web-API for [forum.exbo.ru](https://forum.exbo.ru) website which is the official [STALCRAFT](https://store.steampowered.com/app/1818450/STALCRAFT) forum
 
 ## Usage
 
